@@ -32,7 +32,4 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            cd /home/${{ secrets.DO_USER }}/magnify-cash-listener
-            git pull origin main
-            pnpm install --frozen-lockfile || pnpm install
-            pm2 restart all
+            /home/deploy/magnify-cash-listener/deploy.sh
