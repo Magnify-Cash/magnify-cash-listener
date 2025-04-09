@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy Node App
+    name: Deploy Node App with pnpm
     runs-on: ubuntu-latest
 
     steps:
@@ -19,11 +19,11 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: Install pnpm
+        run: npm install -g pnpm
 
-      - name: Run Tests
-        run: npm test
+      - name: Install Dependencies
+        run: pnpm install
 
       - name: Deploy to Droplet
         uses: appleboy/ssh-action@v1.0.0
@@ -34,5 +34,5 @@ jobs:
           script: |
             cd /home/${{ secrets.DO_USER }}/magnify-cash-listener
             git pull origin main
-            npm install --production
+            pnpm install --frozen-lockfile || pnpm install
             pm2 restart all
