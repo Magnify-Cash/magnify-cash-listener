@@ -3,7 +3,7 @@ const { worldchain } = require('viem/chains')
 const MagnifyV3Abi = require('./contracts/MagnifyV3.json');
 const { getPoolIds } = require("./db/user.query");
 const { serializeBigInt, getBlockTimestamp, getPoolAddresses } = require('./utils');
-const { createUserLendingEvent } = require('./db/user.query');
+const { createUserLoanEvent } = require('./db/user.query');
 
 // Cache for failed events
 const failedEvents = [];
@@ -45,7 +45,7 @@ const retryFailedEvents = async () => {
     while (failedEvents.length > 0) {
         const event = failedEvents.shift();
         try {
-            await createUserLendingEvent(event);
+            await createUserLoanEvent(event);
             console.log('Successfully retried failed event');
         } catch (error) {
             console.error('Failed to retry event:', error);
@@ -75,30 +75,56 @@ const setupEventListeners = async () => {
     // Create listeners for each pool and event type
     for (const poolAddress of poolAddresses) {
         console.log(`Setting up event listeners for pool: ${poolAddress}`);
-        // Deposit event listener
-        const depositListener = client.watchContractEvent({
+        
+        // LoanRequested event listener
+        const loanRequestedListener = client.watchContractEvent({
             address: poolAddress,
             abi: MagnifyV3Abi,
-            eventName: 'Deposit',
+            eventName: 'LoanRequested',
             onLogs: (logs) => {
                 console.log(logs);
-                console.log(`Received Deposit event for pool ${poolAddress}`);
-                handleEventLogs('Deposit', poolAddress, logs);
+                console.log(`Received LoanRequested event for pool ${poolAddress}`);
+                handleEventLogs('LoanRequested', poolAddress, logs);
             }
         });
-        eventListeners.push(depositListener);
+        eventListeners.push(loanRequestedListener);
 
-        // Withdraw event listener
-        const withdrawListener = client.watchContractEvent({
+        // LoanRepaid event listener
+        const loanRepaidListener = client.watchContractEvent({
             address: poolAddress,
             abi: MagnifyV3Abi,
-            eventName: 'Withdraw',
+            eventName: 'LoanRepaid',
             onLogs: (logs) => {
                 console.log(logs);
-                handleEventLogs('Withdraw', poolAddress, logs);
+                console.log(`Received LoanRepaid event for pool ${poolAddress}`);
+                handleEventLogs('LoanRepaid', poolAddress, logs);
             }
         });
-        eventListeners.push(withdrawListener);
+        eventListeners.push(loanRepaidListener);
+        // Loan Defaulted event listener
+        const loanDefaultedListener = client.watchContractEvent({
+            address: poolAddress,
+            abi: MagnifyV3Abi,
+            eventName: 'LoanDefaulted',
+            onLogs: (logs) => {
+                console.log(logs);
+                console.log(`Received LoanRepaid event for pool ${poolAddress}`);
+                handleEventLogs('LoanRepaid', poolAddress, logs);
+            }
+        });
+        eventListeners.push(loanDefaultedListener);
+        // Loan Default repaid event listener
+        const loanDefaultRepaidListener = client.watchContractEvent({
+            address: poolAddress,
+            abi: MagnifyV3Abi,
+            eventName: 'LoanDefaultRepaid',
+            onLogs: (logs) => {
+                console.log(logs);
+                console.log(`Received LoanDefaultRepaid event for pool ${poolAddress}`);
+                handleEventLogs('LoanDefaultRepaid', poolAddress, logs);
+            }
+        });
+        eventListeners.push(loanDefaultRepaidListener);
     }
 
     // Start all event listeners in parallel
@@ -137,26 +163,24 @@ const client = createPublicClient({
 const handleEventLogs = async (eventName, poolAddress, logs) => {
     let data;
     try {
-        console.log(`Event: ${eventName} from pool: ${poolAddress}`);
-        const event = logs[0];
+        const price = await client.readContract({
+            address: poolAddress,
+            abi: MagnifyV3Abi,
+            functionName: 'previewRedeem',
+            args: [1_000_000n]
+        });
+        const timestamp = Math.floor(Date.now() / 1000);
         const pools = await getCachedPoolIds();
         const poolId = pools.find(pool => pool.address.toLowerCase() === poolAddress.toLowerCase());
-        const timestamp = await getBlockTimestamp(event.blockNumber);
-        const date = new Date(Number(timestamp) * 1000).toISOString();
         data = {
-            address: event.args.sender.toLowerCase(),
-            eventname: event.eventName,
-            assets: event.args.assets.toString(),
-            shares: event.args.shares.toString(),
-            timestamp: date,
-            blocknumber: event.blockNumber.toString(),
-            pool_id: poolId.id
+            pool_id: poolId.id,
+            token_price: serializeBigInt(price) / 1_000_000,
+            timestamp: timestamp
         }
-        console.log('Saving event data:', data);
         try {
             console.log('Attempting to save to database...');
-            const result = await createUserLendingEvent(data);
-            console.log('Successfully saved event with ID:', result);
+            const result = await createLPTokenPriceEvent(data);
+            console.log('Successfully saved LP token price for pool:', data);
         } catch (dbError) {
             console.error('Database error:', dbError);
             throw dbError;
@@ -168,13 +192,3 @@ const handleEventLogs = async (eventName, poolAddress, logs) => {
         console.log('Event stored in retry cache. Current failed events:', failedEvents.length);
     }
 };
-
-
-
-
-
-
-
-
-
-
