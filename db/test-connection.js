@@ -6,7 +6,7 @@ async function testConnection() {
   let connection = null;
   try {
     console.log('Attempting to establish database connection...');
-    console.log('Using DATABASE_URL:', process.env.DATABASE_URL ? '✅ Set' : '❌ Not set');
+    console.log('Using DATABASE_URL:', process.env.DATABASE_URL);
     connection = await getConnection();
     console.log('✅ Successfully connected to the database!');
     
