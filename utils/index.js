@@ -14,7 +14,7 @@ module.exports.initPublicClient = async (rpcUrl) => {
 module.exports.getPoolAddresses = async () => {
     const client = await this.initPublicClient(WORLDCHAIN_RPC_URL);
     const pools = await client.readContract({
-        address: '0x34d8E8d439923060C05dFF58B80b0Bf896657C7f',
+        address: '0x2703CbD5E7720b65352B1Dd17a3d8df77CfECd08',
         abi: MagnifySoulboundAbi,
         functionName: 'getMagnifyPools'
     });
